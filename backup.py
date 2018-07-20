@@ -26,7 +26,8 @@ def setupDefaultLogger():
     ch = logging.StreamHandler(sys.stdout)
     ch.setFormatter(LOG_FORMATTER)
     logger.addHandler(ch)
-    logger.setLevel(logging.INFO)
+    #logger.setLevel(logging.INFO)
+    logger.setLevel(logging.DEBUG)
     return logger
 
 # Default logger
@@ -145,53 +146,91 @@ class Backupper(object):
         self._config = config
         self._actions = actions if actions else config.DEFAULT_ACTIONS
         self.logger = UnitLogger(config)
+        self._prepareConfig()
 
     def run(self):
         for act in self._actions:
             self._doAction(act)
 
+    def _prepareConfig(self):
+        for archiveConf in self._config.archives:
+            if 'borg' not in archiveConf:
+                raise KeyError("Field 'borg' not found in config of archive")
+            borgConf = archiveConf['borg']
+            if 'passphrase' not in borgConf:
+                borgConf['passphrase'] = ''
+            if 'archive-name' not in borgConf:
+                borgConf['archive-name'] = '"{now:%Y-%m-%d.%H:%M}"'
+            if 'compression' not in borgConf:
+                borgConf['compression'] = 'lz4'
+            if 'encryption-mode' not in borgConf:
+                borgConf['encryption-mode'] = 'repokey'
+            if 'commands-extra' not in borgConf:
+                borgConf['commands-extra'] = dict()
+
+            for name in ('archive-name', 'compression', 'encryption-mode'):
+                borgConf[name] = borgConf[name].strip()
+
+            borgConf['commands-extra'] = defaultdict(str, borgConf['commands-extra'])
+
     def _doAction(self, action):
 
         (prefix, command) = action.split(':')
         if not (prefix and command):
-            raise Error('Unknown command format, should have format "prefix:command"')
+            raise Error('Unknown command format, should be format "prefix:command"')
 
         methodName = '_do' + prefix[0].upper() + prefix[1:] + command[0].upper() + command[1:]
 
         if not hasattr(self, methodName):
             if prefix == 'borg':
-                methodCall = lambda: self._doBorgDefault(command)
+                methodCall = lambda conf: self._doBorgDefault(conf, command)
             elif prefix == 'rclone':
-                methodCall = lambda: self._doRcloneDefault(command)
+                methodCall = lambda conf: self._doRcloneDefault(conf, command)
             else:
                 raise Error('Unknown prefix of command, should be "borg" or "rclone"')
         else:
             methodCall = getattr(self, methodName)
 
-        methodCall()
+        for archiveConf in self._config.archives:
+            methodCall(archiveConf)
 
-    def _doBorgDefault(self, cmd):
+    def _doBorgDefault(self, archiveConf, cmd):
         print("BORG: default")
 
-    def _doBorgInit(self):
+    def _doBorgInit(self, archiveConf):
         print("BORG: init")
-        cmd = '-V'
-        self._runBorgCmd(cmd)
+        borgConf = archiveConf['borg']
+        print(borgConf)
+        cmd = 'init --encryption=%s %s' % (borgConf['encryption-mode'], borgConf['repository'])
+        cmd = cmd + borgConf['commands-extra']['init']
 
-    def _doRcloneDefault(self, cmd):
+        self._runBorgCmd(borgConf, cmd)
+
+    def _doRcloneDefault(self, archiveConf, cmd):
         print("RCLONE: default")
 
-    def _runBorgCmd(self, cmd):
+    def _runBorgCmd(self, borgConf, cmd):
 
         borgCmd = self._config.BORG_CMD if hasattr(self._config, 'BORG_CMD') else BORG_CMD
 
         cmd = borgCmd + ' ' + cmd
+        self.logger.debug("BORG command: %s", cmd)
+
+        # We must do copy here otherwise we will show all our env variables in current process
+        env = os.environ.copy()
+        if 'passcommand' in borgConf:
+            env['BORG_PASSCOMMAND'] = borgConf['passcommand']
+        else:
+            env['BORG_PASSPHRASE'] = borgConf['passphrase']
+
+        #TODO: cwd ???
 
         # Redirect stderr to stdout, see:
         # https://github.com/borgbackup/borg/issues/520
         proc = subprocess.Popen(
-            cmd.split(), stdout = subprocess.PIPE, stderr = subprocess.STDOUT, universal_newlines = True)
-            #cmd, stdout = subprocess.PIPE, stderr = subprocess.STDOUT, shell = True)
+            cmd.split(), stdout = subprocess.PIPE, stderr = subprocess.STDOUT,
+            env = env, universal_newlines = True)
+
         stdout, stderr = proc.communicate()
         if stderr:
             self.logger.error('BORG ERRORS:\n')
@@ -201,7 +240,6 @@ class Backupper(object):
 
     def _handleProcRetCode(self, returncode):
         if returncode != 0:
-            self.logger.error("Borg process terminated with error code %s", returncode)
             raise Exception("Borg process terminated with error code %s" % returncode)
 
 def main():
@@ -224,6 +262,7 @@ def main():
     seen = set()
     configFiles = [x for x in args.configFiles if x not in seen and not seen.add(x)]
 
+    # load all configs as python files
     configs = map(lambda m: __import__(m[:-3]),
             filter(lambda f: f.endswith(".py"), configFiles))
 
@@ -233,7 +272,7 @@ def main():
             backupper = Backupper(cfg, args.actions)
             backupper.run()
     except Exception as exc:
-        log.error("Error:\n%s", exc)
+        log.error("Error: %s", exc)
         return 1
 
     return 0

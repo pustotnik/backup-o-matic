@@ -16,3 +16,4 @@ I have NO goals:
     - to write code with max performance (but it has good performance for me anyway)
     - to handle all sorts of errors and cases (but I try to fix all important cases)
     - to provide working script for not GNU/Linux platform (but it ok if someone do it)
+    - to write ideal code

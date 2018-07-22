@@ -7,22 +7,28 @@ import sys, os
 ======================= ARCHIVES SETTINGS
 """
 
-# This data is not used in backup script, just for convenience
+# This data is not used in backup script, just for convenience. See section 'archives' below.
 default = {
     'borg' : {
-        #'passphrase'      : '123456',
-        'passcommand'     : 'cat test_pwd',
-        #'passcommand'     : 'pass show backup',
-        #'archive-name'    : '"{now:%Y-%m-%d.%H:%M}"', # optional, default '"{now:%Y-%m-%d.%H:%M}"',
+        'archive-name'    : '"{now:%Y-%m-%d.%H:%M:%S}"', # optional, default '"{now:%Y-%m-%d.%H:%M}"',
         #'compression'     : 'zlib,4',                 # optional, default 'lz4'
         #'encryption-mode' : 'repokey',                # optional, default 'repokey'
 
-        # Backup script already know and use some commands and its base args such as
-        # 'repository' and etc, but here some extra args can be set. See borg manual.
+        # Backup script already knows and uses some commands and its base args such as
+        # 'repository' and etc, but here some extra args can be set. See borg manual for details.
+        # It can be added args to any borg command even if it is new borg command.
         'commands-extra'  : {
             #'init'   : '',
-            'create' : '--show-rc --stats',
-            'prune'  : '-v --list {repository} --keep-daily=2 --keep-weekly=1 --keep-monthly=1',
+            'create' : '--show-rc --stats -v --exclude-caches',
+            #'prune'  : '-v --list --keep-daily=2 --keep-weekly=1 --keep-monthly=1',
+            'check'  : '-v'
+        },
+
+        # Enviroment variables for borg. See borg manual for details.
+        'env-vars' : {
+            #'BORG_PASSPHRASE'  : '123456'
+            'BORG_PASSCOMMAND' : 'cat test_pwd',
+            #'BORG_PASSCOMMAND' : 'pass show backup',
         }
     },
     'rclone' : {
@@ -49,12 +55,11 @@ archives = (
                 'test-src/exclude',
             ),
             'commands-extra' : dict(default['borg']['commands-extra'], **{
-                'create' : '--show-rc --stats -v',
                 'prune'  : '-v --list --keep-daily=7 --keep-weekly=3 --keep-monthly=3',
+                'list'   : '-v'
             }),
         }),
         'rclone' : dict(default['rclone'], **{
-
         })
     },
     # one more archive and etc
@@ -95,8 +100,7 @@ email = {
 ======================= OVERRIDES (optional)
 """
 
-#BORG_CMD = '/usr/bin/borg'
-#LOG_LEVEL = ''
+#BORG_BIN = '/usr/bin/borg'
 
 """
 ======================= DEFAULT LIST OF ACTIONS IN ORDER OF RUNNING

@@ -14,7 +14,7 @@ from collections import defaultdict
 from email.mime.text import MIMEText
 from distutils.spawn import find_executable
 
-BORG_CMD = find_executable('borg')
+BORG_BIN = find_executable('borg')
 
 #USER_HOMEDIR = os.path.expanduser('~')
 
@@ -152,13 +152,34 @@ class Backupper(object):
         for act in self._actions:
             self._doAction(act)
 
+    def isBorgRepo(self, path):
+        if not os.path.isdir(path):
+            return False
+        if not os.path.isfile(os.path.join(path, 'config')):
+            return False
+
+        readmeFilePath = os.path.join(path, 'README')
+        if not os.path.isfile(readmeFilePath):
+            return False
+
+        """
+        From docs:
+        README - simple text file telling that this is a Borg repository
+        """
+        import re
+        with open(readmeFilePath) as readmeFile:
+            for line in readmeFile:
+                m = re.search("borg\s+backup\s+repository", line, re.IGNORECASE)
+                if m:
+                    return True
+
+        return False
+
     def _prepareConfig(self):
         for archiveConf in self._config.archives:
             if 'borg' not in archiveConf:
                 raise KeyError("Field 'borg' not found in config of archive")
             borgConf = archiveConf['borg']
-            if 'passphrase' not in borgConf:
-                borgConf['passphrase'] = ''
             if 'archive-name' not in borgConf:
                 borgConf['archive-name'] = '"{now:%Y-%m-%d.%H:%M}"'
             if 'compression' not in borgConf:
@@ -167,75 +188,103 @@ class Backupper(object):
                 borgConf['encryption-mode'] = 'repokey'
             if 'commands-extra' not in borgConf:
                 borgConf['commands-extra'] = dict()
+            if 'env-vars' not in borgConf:
+                borgConf['env-vars'] = dict()
 
             for name in ('archive-name', 'compression', 'encryption-mode'):
                 borgConf[name] = borgConf[name].strip()
 
+            for cmd in borgConf['commands-extra']:
+                borgConf['commands-extra'][cmd] = ' ' + borgConf['commands-extra'][cmd]
             borgConf['commands-extra'] = defaultdict(str, borgConf['commands-extra'])
 
     def _doAction(self, action):
 
-        (prefix, command) = action.split(':')
-        if not (prefix and command):
-            raise Error('Unknown command format, should be format "prefix:command"')
+        parts = action.split(':', 2)
+        if len(parts) < 2:
+            raise Error('Unknown command format, should be format "prefix:command[:\"params\"]"')
+        prefix = parts[0]
+        command = parts[1]
+        params = ''
+        if len(parts) == 3:
+            params = parts[2]
 
         methodName = '_do' + prefix[0].upper() + prefix[1:] + command[0].upper() + command[1:]
 
         if not hasattr(self, methodName):
             if prefix == 'borg':
-                methodCall = lambda conf: self._doBorgDefault(conf, command)
+                methodCall = lambda conf, params: self._doBorgDefault(conf, command, params)
             elif prefix == 'rclone':
-                methodCall = lambda conf: self._doRcloneDefault(conf, command)
+                methodCall = lambda conf, params: self._doRcloneDefault(conf, command, params)
             else:
                 raise Error('Unknown prefix of command, should be "borg" or "rclone"')
         else:
             methodCall = getattr(self, methodName)
 
         for archiveConf in self._config.archives:
-            methodCall(archiveConf)
+            methodCall(archiveConf, params)
 
-    def _doBorgDefault(self, archiveConf, cmd):
-        print("BORG: default")
+    def _doBorgDefault(self, archiveConf, cmd, params):
+        self.logger.debug("Default command handler is using for borg command '%s'", cmd)
 
-    def _doBorgInit(self, archiveConf):
-        print("BORG: init")
         borgConf = archiveConf['borg']
-        print(borgConf)
+        cmd = cmd + borgConf['commands-extra'][cmd]
+        self._runBorgCmd(borgConf, cmd + ' ' + params)
+
+    def _doBorgInit(self, archiveConf, params):
+        self.logger.debug("Borg command: init")
+        borgConf = archiveConf['borg']
+
+        if self.isBorgRepo(borgConf['repository']):
+            self.logger.info("A repository already exists at %s. Command 'borg init' will not be used.",
+                borgConf['repository'])
+            return
+
         cmd = 'init --encryption=%s %s' % (borgConf['encryption-mode'], borgConf['repository'])
         cmd = cmd + borgConf['commands-extra']['init']
 
-        self._runBorgCmd(borgConf, cmd)
+        self._runBorgCmd(borgConf, cmd + ' ' + params)
 
-    def _doRcloneDefault(self, archiveConf, cmd):
-        print("RCLONE: default")
+    def _doBorgCreate(self, archiveConf, params):
+        self.logger.debug("Borg command: create")
+        borgConf = archiveConf['borg']
+
+        cmd = 'create --compression %s ::%s' % \
+            (borgConf['compression'], borgConf['archive-name'])
+        for src in borgConf['source']:
+            cmd = cmd + ' ' + src
+        for exclude in borgConf['exclude']:
+            cmd = cmd + " --exclude '%s'" % exclude
+        cmd = cmd + borgConf['commands-extra']['create']
+
+        self._runBorgCmd(borgConf, cmd + ' ' + params)
+
+    def _doRcloneDefault(self, archiveConf, cmd, params):
+        self.logger.debug("Default command handler is using for rclone command '%s'", cmd)
 
     def _runBorgCmd(self, borgConf, cmd):
 
-        borgCmd = self._config.BORG_CMD if hasattr(self._config, 'BORG_CMD') else BORG_CMD
+        borgBin = self._config.BORG_BIN if hasattr(self._config, 'BORG_BIN') else BORG_BIN
 
-        cmd = borgCmd + ' ' + cmd
-        self.logger.debug("BORG command: %s", cmd)
+        cmd = borgBin + ' ' + cmd
+        self.logger.debug("Borg command line: %s", cmd)
 
         # We must do copy here otherwise we will show all our env variables in current process
         env = os.environ.copy()
-        if 'passcommand' in borgConf:
-            env['BORG_PASSCOMMAND'] = borgConf['passcommand']
-        else:
-            env['BORG_PASSPHRASE'] = borgConf['passphrase']
-
-        #TODO: cwd ???
+        env['BORG_REPO'] = borgConf['repository']
+        env.update(borgConf['env-vars'])
 
         # Redirect stderr to stdout, see:
         # https://github.com/borgbackup/borg/issues/520
         proc = subprocess.Popen(
-            cmd.split(), stdout = subprocess.PIPE, stderr = subprocess.STDOUT,
-            env = env, universal_newlines = True)
+            cmd, stdout = subprocess.PIPE, stderr = subprocess.STDOUT,
+            env = env, universal_newlines = True, shell = True)
 
         stdout, stderr = proc.communicate()
         if stderr:
             self.logger.error('BORG ERRORS:\n')
             self.logger.error(stderr)
-        self.logger.info('BORG STDOUT:\n' + stdout)
+        self.logger.info('BORG OUTPUT:\n' + stdout)
         self._handleProcRetCode(proc.returncode)
 
     def _handleProcRetCode(self, returncode):
@@ -247,10 +296,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("configFiles", nargs = '+', metavar = 'configfile', \
         help = "path to config file, file should have python format")
-    #parser.add_argument('-a', '--actions', nargs = '*', choices = ['init', 'archive'], \
-    #    help = "actions in order of running, optional")
     parser.add_argument('-a', '--actions', nargs = '*', \
-        help = "actions in order of running, optional")
+        help = "actions in order of running, optional, format: prefix:command[:\"command params\"]")
 
     if len(sys.argv) == 1:
         parser.print_help()

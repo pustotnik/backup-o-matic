@@ -180,6 +180,8 @@ class Backupper(object):
             if 'borg' not in archiveConf:
                 raise KeyError("Field 'borg' not found in config of archive")
             borgConf = archiveConf['borg']
+            if 'do-if' not in borgConf:
+                borgConf['do-if'] = None
             if 'archive-name' not in borgConf:
                 borgConf['archive-name'] = '"{now:%Y-%m-%d.%H:%M}"'
             if 'compression' not in borgConf:
@@ -222,7 +224,22 @@ class Backupper(object):
             methodCall = getattr(self, methodName)
 
         for archiveConf in self._config.archives:
-            methodCall(archiveConf, params)
+            doIf = archiveConf['borg']['do-if'] if prefix == 'borg' else archiveConf['rclone']['do-if']
+            doCall = False
+            if doIf is None:
+                doCall = True
+            elif callable(doIf):
+                doCall = doIf()
+                self.logger.info("Param 'do-if' from '%s' section is function and result is '%s'",
+                    prefix, doCall)
+            elif isinstance(doIf, str):
+                doCall = subprocess.call(doIf, shell = True) == 0
+                self.logger.info("Param 'do-if' from '%s' section is string to "
+                    "run command '%s' and result is '%s'",
+                    prefix, doIf, doCall)
+
+            if doCall:
+                methodCall(archiveConf, params)
 
     def _doBorgDefault(self, archiveConf, cmd, params):
         self.logger.debug("Default command handler is using for borg command '%s'", cmd)

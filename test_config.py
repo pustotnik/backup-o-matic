@@ -9,6 +9,7 @@ import sys, os
 
 # This data is not used in backup script, just for convenience. See section 'archives' below.
 default = {
+    # Values in this section refer to borg values. See borg docs for details.
     'borg' : {
         'archive-name'    : '"{now:%Y-%m-%d.%H:%M:%S}"', # optional, default '"{now:%Y-%m-%d.%H:%M}"',
         #'compression'     : 'zlib,4',                 # optional, default 'lz4'
@@ -35,6 +36,10 @@ default = {
     }
 }
 
+def doIf():
+    # Just example
+    return True
+
 """
 Config for list of archives
 
@@ -46,7 +51,12 @@ It can be used with more than one archive.
 """
 archives = (
     {
+        # Values in this section refer to borg values. See borg docs for details.
         'borg' : dict(default['borg'], **{
+            # 'do-if' can be used as condition to run any command with current archive
+            # It can be function or any command for shell. It is None by default
+            #'do-if'        : doIf,
+            'do-if'        : 'ping -c 1 localhost &> /dev/null',
             'repository'   : '/tmp/borg-test-repo',
             'source'       : (
                 'test-src',
@@ -60,6 +70,8 @@ archives = (
             }),
         }),
         'rclone' : dict(default['rclone'], **{
+            # See description for the same param in borg section above
+            'do-if'        : doIf,
         })
     },
     # one more archive and etc

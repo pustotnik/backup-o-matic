@@ -6,6 +6,7 @@ import sys, os
 if sys.hexversion < 0x2070ef0:
     raise ImportError('Python >= 2.7 is required')
 
+import traceback
 import argparse
 import subprocess
 import logging, logging.handlers
@@ -20,14 +21,14 @@ BORG_BIN = find_executable('borg')
 
 LOG_FORMATTER = logging.Formatter(
     "%(asctime)s [%(levelname)s] %(message)s", datefmt='%Y-%m-%d %H:%M:%S')
+LOG_DEFAULT_LEVEL = logging.INFO
 
 def setupDefaultLogger():
     logger = logging.getLogger(__name__)
     ch = logging.StreamHandler(sys.stdout)
     ch.setFormatter(LOG_FORMATTER)
     logger.addHandler(ch)
-    #logger.setLevel(logging.INFO)
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(LOG_DEFAULT_LEVEL)
     return logger
 
 # Default logger
@@ -99,8 +100,11 @@ class BufferingSMTPHandler(logging.handlers.BufferingHandler):
 class UnitLogger(object):
 
     def __init__(self, config):
+        logLevel = config.LOG_LEVEL if hasattr(config, 'LOG_LEVEL') else LOG_DEFAULT_LEVEL
+
         # get ready to use default logger
         self.consoleLog = logging.getLogger(__name__)
+        self.consoleLog.setLevel(logLevel)
 
         # setup mail logger
         self.mailLog = None
@@ -109,9 +113,9 @@ class UnitLogger(object):
             useMail = config.email['use']
         if useMail:
             self.mailLog = logging.getLogger('mail')
-            self.mailLog.setLevel(logging.INFO)
+            self.mailLog.setLevel(logLevel)
             smtpHandler = BufferingSMTPHandler(config.email)
-            smtpHandler.setLevel(logging.INFO)
+            smtpHandler.setLevel(logLevel)
             smtpHandler.setFormatter(LOG_FORMATTER)
             self.mailLog.addHandler(smtpHandler)
 
@@ -146,11 +150,17 @@ class Backupper(object):
         self._config = config
         self._actions = actions if actions else config.DEFAULT_ACTIONS
         self.logger = UnitLogger(config)
-        self._prepareConfig()
 
     def run(self):
-        for act in self._actions:
-            self._doAction(act)
+        try:
+            self._prepareConfig()
+            for act in self._actions:
+                self._doAction(act)
+        except Exception as exc:
+            self.logger.error("Error: %s\n%s", exc, traceback.format_exc())
+            return False
+
+        return True
 
     def isBorgRepo(self, path):
         if not os.path.isdir(path):
@@ -330,14 +340,10 @@ def main():
     configs = map(lambda m: __import__(m[:-3]),
             filter(lambda f: f.endswith(".py"), configFiles))
 
-    log = logging.getLogger(__name__)
-    try:
-        for cfg in configs:
-            backupper = Backupper(cfg, args.actions)
-            backupper.run()
-    except Exception as exc:
-        log.error("Error: %s", exc)
-        return 1
+    for cfg in configs:
+        backupper = Backupper(cfg, args.actions)
+        if not backupper.run():
+            return 1
 
     return 0
 

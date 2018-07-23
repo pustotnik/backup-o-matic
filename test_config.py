@@ -1,7 +1,7 @@
 # coding=utf8
 #
 
-import sys, os
+#import sys, os
 
 """
 ======================= ARCHIVES SETTINGS
@@ -112,7 +112,15 @@ email = {
 ======================= OVERRIDES (optional)
 """
 
+# Usually it is not necessery, backup script tries to find path by itself
 #BORG_BIN = '/usr/bin/borg'
+
+# Custom level of logging. This level will be applied to console and email logging.
+# It is logging.INFO by default
+import logging
+LOG_LEVEL = logging.DEBUG
+#LOG_LEVEL = logging.ERROR
+#LOG_LEVEL = logging.CRITICAL
 
 """
 ======================= DEFAULT LIST OF ACTIONS IN ORDER OF RUNNING

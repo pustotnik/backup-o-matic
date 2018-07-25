@@ -26,6 +26,7 @@ default = {
         },
 
         # Enviroment variables for borg. See borg manual for details.
+        # Using of BORG_PASSPHRASE is not recommended by security reason. Use BORG_PASSCOMMAND
         'env-vars' : {
             #'BORG_PASSPHRASE'  : '123456'
             'BORG_PASSCOMMAND' : 'cat test_pwd',
@@ -33,6 +34,17 @@ default = {
         }
     },
     'rclone' : {
+        #'with-lock' : True, # Run rclone with borg command 'with-lock', 'False' by default
+
+        'commands-extra'  : {
+            'dedupe'  : '--dedupe-mode newest',
+        },
+
+        # Enviroment variables for rclone. See rclone manual for details.
+        'env-vars' : {
+            'RCLONE_DRIVE_USE_TRASH' : 'false',
+            #'RCLONE_CONFIG'          : '~/rclone.conf',
+        }
     }
 }
 
@@ -53,10 +65,6 @@ archives = (
     {
         # Values in this section refer to borg values. See borg docs for details.
         'borg' : dict(default['borg'], **{
-            # 'do-if' can be used as condition to run any command with current archive
-            # It can be function or any command for shell. It is None by default
-            #'do-if'        : doIf,
-            'do-if'        : 'ping -c 1 localhost &> /dev/null',
             'repository'   : '/tmp/borg-test-repo',
             'source'       : (
                 'test-src',
@@ -68,10 +76,19 @@ archives = (
                 'prune'  : '-v --list --keep-daily=7 --keep-weekly=3 --keep-monthly=3',
                 'list'   : '-v'
             }),
+            # 'run-before' can be used as condition to run any command with current archive
+            # It can be function or any command to run in shell. It is None by default
+            #'run-before'   : doIf,
+            'run-before'   : 'ping -c 1 localhost &> /dev/null',
+            #'run-after'    : None,
         }),
         'rclone' : dict(default['rclone'], **{
             # See description for the same param in borg section above
-            'do-if'        : doIf,
+            'run-before'   : doIf,
+            'run-after'    : None,
+            'destination'  : 'remote:backup',
+            'commands-extra' : dict(default['rclone']['commands-extra'], **{
+            }),
         })
     },
     # one more archive and etc
@@ -113,7 +130,8 @@ email = {
 """
 
 # Usually it is not necessery, backup script tries to find path by itself
-#BORG_BIN = '/usr/bin/borg'
+#BORG_BIN   = '/usr/bin/borg'
+#RCLONE_BIN = '/usr/bin/rclone'
 
 # Custom level of logging. This level will be applied to console and email logging.
 # It is logging.INFO by default
@@ -129,6 +147,9 @@ LOG_LEVEL = logging.DEBUG
 DEFAULT_ACTIONS = ( \
     'borg:init',
     'borg:create',
+    'borg:prune',
     'borg:check',
+    'rclone:dedupe',
     'rclone:sync',
+    'rclone:check',
 )

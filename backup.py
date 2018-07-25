@@ -312,6 +312,7 @@ class Backupper(object):
         if cmd in requireDestination:
             cmdLine = cmdLine + ' ' + rcloneConf['destination']
         cmdLine = cmdLine + rcloneConf['commands-extra'][cmd]
+
         if rcloneConf['with-lock']:
             env = os.environ.copy()
             env.update(rcloneConf['env-vars'])

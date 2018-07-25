@@ -36,6 +36,7 @@ def setupDefaultLogger():
 setupDefaultLogger()
 
 class BufferingSMTPHandler(logging.handlers.BufferingHandler):
+
     def __init__(self, emailConf):
         # capacity here is number of the log records
         super(BufferingSMTPHandler, self).__init__(capacity = 1024)

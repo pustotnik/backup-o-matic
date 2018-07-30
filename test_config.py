@@ -65,7 +65,7 @@ archives = (
     {
         # Values in this section refer to borg values. See borg docs for details.
         'borg' : dict(default['borg'], **{
-            'repository'   : '/tmp/borg-test-repo',
+            'repository'   : '/tmp/borg-test-repo/1',
             'source'       : (
                 'test-src',
             ),
@@ -149,7 +149,7 @@ DEFAULT_ACTIONS = ( \
     'borg:create',
     'borg:prune',
     'borg:check',
-    'rclone:dedupe',
-    'rclone:sync',
-    'rclone:check',
+    #'rclone:dedupe',
+    #'rclone:sync',
+    #'rclone:check',
 )

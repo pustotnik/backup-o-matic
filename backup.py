@@ -11,14 +11,13 @@ import argparse
 import subprocess
 import logging, logging.handlers
 import smtplib
+from copy import deepcopy
 from collections import defaultdict
 from email.mime.text import MIMEText
 from distutils.spawn import find_executable
 
 BORG_BIN   = find_executable('borg')
 RCLONE_BIN = find_executable('rclone')
-
-#USER_HOMEDIR = os.path.expanduser('~')
 
 LOG_FORMATTER = logging.Formatter(
     "%(asctime)s [%(levelname)s] %(message)s", datefmt='%Y-%m-%d %H:%M:%S')
@@ -34,6 +33,16 @@ def setupDefaultLogger():
 
 # Default logger
 setupDefaultLogger()
+
+def makeDir(path):
+    if not path:
+        raise IOError("Path can not be empty")
+    path = os.path.expandvars(path)
+    path = os.path.expanduser(path)
+    path = os.path.realpath(path)
+    if os.path.isdir(path):
+        return
+    os.makedirs(path)
 
 class BufferingSMTPHandler(logging.handlers.BufferingHandler):
 
@@ -72,7 +81,8 @@ class BufferingSMTPHandler(logging.handlers.BufferingHandler):
             for record in self.buffer:
                 body = body + self.format(record) + "\r\n"
 
-            msg = MIMEText(body.encode('utf-8'), _charset="utf-8")
+            #msg = MIMEText(body.encode('utf-8'), _charset="utf-8")
+            msg = MIMEText(body, _charset="utf-8")
             msg['Subject'] = self.emailConf['subject']
             msg['From']    = self.emailConf['from']
             msg['To']      = self.emailConf['to']
@@ -159,17 +169,25 @@ class Backupper(object):
         self.borgBin = config.BORG_BIN if hasattr(config, 'BORG_BIN') else BORG_BIN
         self.rcloneBin = config.RCLONE_BIN if hasattr(config, 'RCLONE_BIN') else RCLONE_BIN
 
-    def _prepareConfig(self):
+    def _prepare(self):
 
         for archiveConf in self._config.archives:
+
+            # fix problem of changing of shallow copies of dicts
+            for key in archiveConf:
+                archiveConf[key] = deepcopy(archiveConf[key])
 
             if 'borg' not in archiveConf:
                 raise KeyError("Section 'borg' not found in config of archive")
             borgConf = archiveConf['borg']
 
+            if 'repository' not in borgConf or not borgConf['repository']:
+                raise KeyError("Field 'repository' not found in 'borg' section or empty")
+
             if 'rclone' not in archiveConf:
                 archiveConf['rclone'] = dict()
             rcloneConf = archiveConf['rclone']
+            rcloneConf['use'] = bool(rcloneConf)
 
             self._setupDefaultConfigValues(archiveConf)
 
@@ -187,6 +205,8 @@ class Backupper(object):
             # to simplify work with borg commands
             borgConf['env-vars']['BORG_REPO'] = borgConf['repository']
 
+            makeDir(borgConf['repository'])
+
     def _setupDefaultConfigValues(self, archiveConf):
 
         defaultConfValues = {
@@ -194,6 +214,7 @@ class Backupper(object):
                 'archive-name'    : '"{now:%Y-%m-%d.%H:%M}"',
                 'compression'     : 'lz4',
                 'encryption-mode' : 'repokey',
+                'exclude'         : tuple(),
                 'commands-extra'  : dict(),
                 'env-vars'        : dict(),
                 'run-before'      : None,
@@ -201,6 +222,7 @@ class Backupper(object):
             },
             'rclone' : {
                 'with-lock'       : False,
+                'destination'     : None,
                 'commands-extra'  : dict(),
                 'env-vars'        : dict(),
                 'run-before'      : None,
@@ -240,7 +262,8 @@ class Backupper(object):
 
         for archiveConf in self._config.archives:
 
-            self.logger.info("Try to run %s command '%s'", prefix, command)
+            self.logger.info("Try to run %s command '%s' for repo '%s'",
+                                prefix, command, archiveConf['borg']['repository'])
 
             runBefore = archiveConf[prefix]['run-before']
             runAfter  = archiveConf[prefix]['run-after']
@@ -302,22 +325,34 @@ class Backupper(object):
     def _doRcloneDefault(self, archiveConf, cmd, params):
         self.logger.debug("Default command handler is using for rclone command '%s'", cmd)
 
+        rcloneConf = archiveConf['rclone']
+        borgConf   = archiveConf['borg']
+
+        if not rcloneConf['use']:
+            self.logger.info("No section 'rclone' for repository '%s', command '%s' won't be run",
+                                borgConf['repository'], cmd)
+            return
+
         requireSource      = ('sync', 'copy', 'move', 'check', 'copyto')
         requireDestination = ('sync', 'copy', 'move', 'delete', 'purge',
                             'mkdir', 'rmdir', 'rmdirs', 'check', 'ls',
                             'lsd', 'lsl', 'size', 'cleanup', 'dedupe', 'copyto')
         cmdLine = cmd
-        rcloneConf = archiveConf['rclone']
+
         if cmd in requireSource:
             cmdLine = cmdLine + ' ' + rcloneConf['source']
         if cmd in requireDestination:
+            if not rcloneConf['destination']:
+                self.logger.error("No 'destination' for repository '%s', command '%s' won't be run",
+                                borgConf['repository'], cmd)
+                return
             cmdLine = cmdLine + ' ' + rcloneConf['destination']
         cmdLine = cmdLine + rcloneConf['commands-extra'][cmd]
 
         if rcloneConf['with-lock']:
             env = os.environ.copy()
             env.update(rcloneConf['env-vars'])
-            cmdLine = 'with-lock %s %s %s' % (archiveConf['borg']['repository'],
+            cmdLine = 'with-lock %s %s %s' % (borgConf['repository'],
                                                 self.rcloneBin, cmdLine)
             self._runCmd(archiveConf, cmdLine + ' ' + params, 'borg', env)
         else:
@@ -350,14 +385,15 @@ class Backupper(object):
         stdout, stderr = proc.communicate()
         if stderr:
             self.logger.error(appLogName + ' ERRORS:\n' + stderr)
-        self.logger.info(appLogName + ' OUTPUT:\n' + stdout)
+        if stdout:
+            self.logger.info(appLogName + ' OUTPUT:\n' + stdout)
         if proc.returncode != 0:
             raise ToolResultException("%s process terminated with error code %s" \
                                     % (appLogName, proc.returncode))
 
     def run(self):
         try:
-            self._prepareConfig()
+            self._prepare()
             for act in self._actions:
                 self._doAction(act)
         except ToolResultException as exc:
@@ -409,6 +445,8 @@ def main():
     # To be sure we have no dups
     seen = set()
     configFiles = [x for x in args.configFiles if x not in seen and not seen.add(x)]
+
+    sys.path.append(os.getcwd())
 
     # load all configs as python files
     configs = map(lambda m: __import__(m[:-3]),

@@ -131,29 +131,31 @@ class UnitLogger(object):
             smtpHandler.setFormatter(LOG_FORMATTER)
             self.mailLog.addHandler(smtpHandler)
 
+        self.enableMail = True
+
     def debug(self, *k, **kw):
         self.consoleLog.debug(*k, **kw)
-        if self.mailLog:
+        if self.enableMail and self.mailLog:
             self.mailLog.debug(*k, **kw)
 
     def info(self, *k, **kw):
         self.consoleLog.info(*k, **kw)
-        if self.mailLog:
+        if self.enableMail and self.mailLog:
             self.mailLog.info(*k, **kw)
 
     def warning(self, *k, **kw):
         self.consoleLog.warning(*k, **kw)
-        if self.mailLog:
+        if self.enableMail and self.mailLog:
             self.mailLog.warning(*k, **kw)
 
     def error(self, *k, **kw):
         self.consoleLog.error(*k, **kw)
-        if self.mailLog:
+        if self.enableMail and self.mailLog:
             self.mailLog.error(*k, **kw)
 
     def critical(self, *k, **kw):
         self.consoleLog.critical(*k, **kw)
-        if self.mailLog:
+        if self.enableMail and self.mailLog:
             self.mailLog.critical(*k, **kw)
 
 class ToolResultException(Exception):
@@ -161,10 +163,11 @@ class ToolResultException(Exception):
 
 class Backupper(object):
 
-    def __init__(self, config, actions):
+    def __init__(self, config, cmdLineActions):
         self._config = config
-        self._actions = actions if actions else config.DEFAULT_ACTIONS
         self.logger = UnitLogger(config)
+        self.logger.enableMail = not cmdLineActions
+        self._actions = cmdLineActions if cmdLineActions else config.DEFAULT_ACTIONS
 
         self.borgBin = config.BORG_BIN if hasattr(config, 'BORG_BIN') else BORG_BIN
         self.rcloneBin = config.RCLONE_BIN if hasattr(config, 'RCLONE_BIN') else RCLONE_BIN
@@ -262,9 +265,6 @@ class Backupper(object):
 
         for archiveConf in self._config.archives:
 
-            self.logger.info("Try to run %s command '%s' for repo '%s'",
-                                prefix, command, archiveConf['borg']['repository'])
-
             runBefore = archiveConf[prefix]['run-before']
             runAfter  = archiveConf[prefix]['run-after']
 
@@ -273,7 +273,12 @@ class Backupper(object):
                 doCall = self._doCustomCall(runBefore,
                                 "Param 'run-before' from '%s' section" % prefix)
             if doCall:
+                repo = archiveConf['borg']['repository']
+                self.logger.info("Try to run %s command '%s' for repo '%s'",
+                                prefix, command, repo)
                 methodCall(archiveConf, params)
+                self.logger.info("%s command '%s' for repo '%s' has done",
+                                prefix[0].upper() + prefix[1:], command, repo)
 
             if runAfter:
                 self._doCustomCall(runAfter, "Param 'run-after' from '%s' section" % prefix)

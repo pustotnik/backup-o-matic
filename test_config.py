@@ -2,6 +2,7 @@
 #
 
 #import sys, os
+import platform
 
 """
 ======================= ARCHIVES SETTINGS
@@ -106,7 +107,7 @@ email = {
     'from'    : 'you@gmail.com',
     'to'      : 'you@gmail.com',
     #'to'      : ('you@gmail.com', 'friend@gmail.com'),
-    'subject' : 'Backups',
+    'subject': 'Backups (%s)' % platform.node(),
     'smtp': {
         'useSTARTTLS': True,
         'host'       : 'smtp.gmail.com',
@@ -122,7 +123,7 @@ email = {
     'use'    : False, # optional, can be used to disable email
     'from'   : 'root',
     'to'     : 'root',
-    'subject': 'Backups',
+    'subject': 'Backups (%s)' % platform.node(),
 }
 
 """

@@ -48,7 +48,7 @@ class BufferingSMTPHandler(logging.handlers.BufferingHandler):
 
     def __init__(self, emailConf):
         # capacity here is number of the log records
-        super(BufferingSMTPHandler, self).__init__(capacity = 1024)
+        super(BufferingSMTPHandler, self).__init__(capacity = 2000)
         self.emailConf = defaultdict(str, emailConf)
 
         if 'to' not in emailConf:
@@ -230,7 +230,7 @@ class Backupper(object):
                 'env-vars'        : dict(),
                 'run-before'      : None,
                 'run-after'       : None,
-            }
+            },
         }
 
         for prefix in ('borg', 'rclone'):
@@ -250,8 +250,10 @@ class Backupper(object):
         if len(parts) == 3:
             params = parts[2]
 
-        if prefix not in ('borg', 'rclone'):
-            raise Exception('Unknown prefix of command, should be "borg" or "rclone"')
+        allowedPrefixes = ('borg', 'rclone', 'shell')
+        if prefix not in allowedPrefixes:
+            raise Exception('Unknown prefix of command, should be one from list: %s'
+                            % ', '.join(allowedPrefixes))
 
         methodName = '_do' + prefix[0].upper() + prefix[1:] + command[0].upper() + command[1:]
 
@@ -260,17 +262,20 @@ class Backupper(object):
                 methodCall = lambda conf, params: self._doBorgDefault(conf, command, params)
             elif prefix == 'rclone':
                 methodCall = lambda conf, params: self._doRcloneDefault(conf, command, params)
+            elif prefix == 'shell':
+                methodCall = lambda conf, params: self._doShell(conf, command, params)
         else:
             methodCall = getattr(self, methodName)
 
         for archiveConf in self._config.archives:
 
-            runBefore = archiveConf[prefix]['run-before']
-            runAfter  = archiveConf[prefix]['run-after']
-
             doCall = True
-            if runBefore:
-                doCall = self._doCustomCall(runBefore,
+
+            if prefix != 'shell':
+                runBefore = archiveConf[prefix]['run-before']
+                runAfter  = archiveConf[prefix]['run-after']
+                if runBefore:
+                    doCall = self._doBeforeAfterCall(runBefore,
                                 "Param 'run-before' from '%s' section" % prefix)
             if doCall:
                 repo = archiveConf['borg']['repository']
@@ -280,10 +285,10 @@ class Backupper(object):
                 self.logger.info("%s command '%s' for repo '%s' has done",
                                 prefix[0].upper() + prefix[1:], command, repo)
 
-            if runAfter:
-                self._doCustomCall(runAfter, "Param 'run-after' from '%s' section" % prefix)
+            if prefix != 'shell' and runAfter:
+                self._doBeforeAfterCall(runAfter, "Param 'run-after' from '%s' section" % prefix)
 
-    def _doCustomCall(self, callEntity, paramDesc):
+    def _doBeforeAfterCall(self, callEntity, paramDesc):
         result = None
         if callable(callEntity):
             result = callEntity()
@@ -357,29 +362,44 @@ class Backupper(object):
         if rcloneConf['with-lock']:
             env = os.environ.copy()
             env.update(rcloneConf['env-vars'])
-            cmdLine = 'with-lock %s %s %s' % (borgConf['repository'],
+            env.update(borgConf['env-vars'])
+            cmdLine = '%s with-lock %s %s %s' % (self.borgBin, borgConf['repository'],
                                                 self.rcloneBin, cmdLine)
-            self._runCmd(archiveConf, cmdLine + ' ' + params, 'borg', env)
+            self._runCmdInSystem(archiveConf, cmdLine + ' ' + params, 'borg', env)
         else:
             self._runRcloneCmd(archiveConf, cmdLine + ' ' + params)
 
+    def _doShell(self, archiveConf, cmdLable, params):
+        cmdConf = archiveConf[cmdLable]
+        self.logger.debug("Command handler for custom shell command labeled as '%s': '%s'",
+            cmdLable, cmdConf['command-line'])
+
+        if 'env-vars' not in cmdConf:
+            cmdConf['env-vars'] = dict()
+        cmdConf['env-vars']['BORG_REPO'] = archiveConf['borg']['repository']
+
+        # We must do copy here otherwise we will show all our env variables in current process
+        env = os.environ.copy()
+        env.update(cmdConf['env-vars'])
+
+        self._runCmdInSystem(archiveConf, cmdConf['command-line'], 'shell', env)
+
     def _runBorgCmd(self, archiveConf, cmdLine):
-        self._runCmd(archiveConf, cmdLine, 'borg')
+        # We must do copy here otherwise we will show all our env variables in current process
+        env = os.environ.copy()
+        env.update(archiveConf['borg']['env-vars'])
+        self._runCmdInSystem(archiveConf, self.borgBin + ' ' + cmdLine, 'borg', env)
 
     def _runRcloneCmd(self, archiveConf, cmdLine):
-        self._runCmd(archiveConf, cmdLine, 'rclone')
+        # We must do copy here otherwise we will show all our env variables in current process
+        env = os.environ.copy()
+        env.update(archiveConf['rclone']['env-vars'])
+        self._runCmdInSystem(archiveConf, self.rcloneBin + ' ' + cmdLine, 'rclone', env)
 
-    def _runCmd(self, archiveConf, cmdLine, prefix, env = None):
+    def _runCmdInSystem(self, archiveConf, cmdLine, prefix, env):
 
-        appBin = self.borgBin if prefix == 'borg' else self.rcloneBin
         appLogName = prefix.upper()
-        cmdLine = appBin + ' ' + cmdLine
-        self.logger.debug("%s command line: %s", appLogName, cmdLine)
-
-        if env is None:
-            # We must do copy here otherwise we will show all our env variables in current process
-            env = os.environ.copy()
-        env.update(archiveConf[prefix]['env-vars'])
+        self.logger.debug("%s command line: `%s`", appLogName, cmdLine)
 
         # Redirect stderr to stdout, see also:
         # https://github.com/borgbackup/borg/issues/520

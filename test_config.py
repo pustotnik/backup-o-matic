@@ -14,7 +14,7 @@ default = {
     'borg' : {
         'archive-name'    : '"{now:%Y-%m-%d.%H:%M:%S}"', # optional, default '"{now:%Y-%m-%d.%H:%M}"',
         #'compression'     : 'zlib,4',                 # optional, default 'lz4'
-        #'encryption-mode' : 'repokey',                # optional, default 'repokey'
+        'encryption-mode' : 'repokey-blake2',            # optional, default 'repokey'
 
         # Backup script already knows and uses some commands and its base args such as
         # 'repository' and etc, but here some extra args can be set. See borg manual for details.
@@ -90,7 +90,16 @@ archives = (
             'destination'  : 'remote:backup',
             'commands-extra' : dict(default['rclone']['commands-extra'], **{
             }),
-        })
+        }),
+        # Any custom shell command, can be called with format 'shell:any_name'.
+        # See also DEFAULT_ACTIONS in this file.
+        # Any shell command has env variable BORG_REPO with value of borg:repository (see above).
+        'mytestcmd' : {
+            'command-line' : 'echo "borg repo: ${BORG_REPO}, my extra var: ${MY_EXTRA_VAR}"',
+            'env-vars' : {
+                'MY_EXTRA_VAR' : 'this is my extra variable',
+            },
+        },
     },
     # one more archive and etc
 )
@@ -153,4 +162,5 @@ DEFAULT_ACTIONS = ( \
     #'rclone:dedupe',
     #'rclone:sync',
     #'rclone:check',
+    'shell:mytestcmd',
 )

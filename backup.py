@@ -275,7 +275,7 @@ class Backupper(object):
                 runBefore = archiveConf[prefix]['run-before']
                 runAfter  = archiveConf[prefix]['run-after']
                 if runBefore:
-                    doCall = self._doBeforeAfterCall(runBefore,
+                    doCall = self._doBeforeAfterCall(runBefore, archiveConf[prefix]['env-vars'],
                                 "Param 'run-before' from '%s' section" % prefix)
             if doCall:
                 repo = archiveConf['borg']['repository']
@@ -286,16 +286,20 @@ class Backupper(object):
                                 prefix[0].upper() + prefix[1:], command, repo)
 
             if prefix != 'shell' and runAfter:
-                self._doBeforeAfterCall(runAfter, "Param 'run-after' from '%s' section" % prefix)
+                self._doBeforeAfterCall(runAfter, archiveConf[prefix]['env-vars'],
+                                "Param 'run-after' from '%s' section" % prefix)
 
-    def _doBeforeAfterCall(self, callEntity, paramDesc):
+    def _doBeforeAfterCall(self, callEntity, envVars, paramDesc):
         result = None
         if callable(callEntity):
             result = callEntity()
-            self.logger.info("%s is function and result is '%s'", paramDesc, result)
+            self.logger.debug("%s is function and result is '%s'", paramDesc, result)
         elif isinstance(callEntity, str):
-            result = subprocess.call(callEntity, shell = True) == 0
-            self.logger.info("%s is string to run command '%s' and result is '%s'",
+            env = os.environ.copy()
+            env.update(envVars)
+            result = self._runCmdInSystem(callEntity, 'shell', env, raiseException = False)
+            result = result == 0
+            self.logger.debug("%s is string to run command '%s' and result is '%s'",
                     paramDesc, callEntity, result)
         return result
 
@@ -365,38 +369,44 @@ class Backupper(object):
             env.update(borgConf['env-vars'])
             cmdLine = '%s with-lock %s %s %s' % (self.borgBin, borgConf['repository'],
                                                 self.rcloneBin, cmdLine)
-            self._runCmdInSystem(archiveConf, cmdLine + ' ' + params, 'borg', env)
+            self._runCmdInSystem(cmdLine + ' ' + params, 'borg', env)
         else:
             self._runRcloneCmd(archiveConf, cmdLine + ' ' + params)
 
     def _doShell(self, archiveConf, cmdLable, params):
+        repo = archiveConf['borg']['repository']
+        if cmdLable not in archiveConf:
+            self.logger.info("Label '%s' for custom shell command not found for repo '%s', ignored",
+                            cmdLable, repo)
+            return
+
         cmdConf = archiveConf[cmdLable]
         self.logger.debug("Command handler for custom shell command labeled as '%s': '%s'",
             cmdLable, cmdConf['command-line'])
 
         if 'env-vars' not in cmdConf:
             cmdConf['env-vars'] = dict()
-        cmdConf['env-vars']['BORG_REPO'] = archiveConf['borg']['repository']
+        cmdConf['env-vars']['BORG_REPO'] = repo
 
         # We must do copy here otherwise we will show all our env variables in current process
         env = os.environ.copy()
         env.update(cmdConf['env-vars'])
 
-        self._runCmdInSystem(archiveConf, cmdConf['command-line'], 'shell', env)
+        self._runCmdInSystem(cmdConf['command-line'], 'shell', env)
 
     def _runBorgCmd(self, archiveConf, cmdLine):
         # We must do copy here otherwise we will show all our env variables in current process
         env = os.environ.copy()
         env.update(archiveConf['borg']['env-vars'])
-        self._runCmdInSystem(archiveConf, self.borgBin + ' ' + cmdLine, 'borg', env)
+        self._runCmdInSystem(self.borgBin + ' ' + cmdLine, 'borg', env)
 
     def _runRcloneCmd(self, archiveConf, cmdLine):
         # We must do copy here otherwise we will show all our env variables in current process
         env = os.environ.copy()
         env.update(archiveConf['rclone']['env-vars'])
-        self._runCmdInSystem(archiveConf, self.rcloneBin + ' ' + cmdLine, 'rclone', env)
+        self._runCmdInSystem(self.rcloneBin + ' ' + cmdLine, 'rclone', env)
 
-    def _runCmdInSystem(self, archiveConf, cmdLine, prefix, env):
+    def _runCmdInSystem(self, cmdLine, prefix, env, raiseException = True):
 
         appLogName = prefix.upper()
         self.logger.debug("%s command line: `%s`", appLogName, cmdLine)
@@ -412,9 +422,10 @@ class Backupper(object):
             self.logger.error(appLogName + ' ERRORS:\n' + stderr)
         if stdout:
             self.logger.info(appLogName + ' OUTPUT:\n' + stdout)
-        if proc.returncode != 0:
+        if proc.returncode != 0 and raiseException:
             raise ToolResultException("%s process terminated with error code %s" \
                                     % (appLogName, proc.returncode))
+        return proc.returncode
 
     def run(self):
         try:

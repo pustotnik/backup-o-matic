@@ -22,8 +22,10 @@ default = {
         'commands-extra'  : {
             #'init'   : '',
             'create' : '--show-rc --stats -v --exclude-caches',
-            #'prune'  : '-v --list --keep-daily=2 --keep-weekly=1 --keep-monthly=1',
-            'check'  : '-v'
+            'prune'  : '-v --list --keep-daily=2 --keep-weekly=1 --keep-monthly=1',
+            'check'  : '-v',
+            'mount'  : '${BORG_REPO} ${MY_BORG_REPO_MNTPNT}',
+            'umount' : '${MY_BORG_REPO_MNTPNT}',
         },
 
         # Enviroment variables for borg. See borg manual for details.
@@ -77,10 +79,13 @@ archives = (
                 'prune'  : '-v --list --keep-daily=7 --keep-weekly=3 --keep-monthly=3',
                 'list'   : '-v'
             }),
+            'env-vars' : dict(default['borg']['env-vars'], **{
+                'MY_BORG_REPO_MNTPNT'  : '/tmp/borg-mount/1',
+            }),
             # 'run-before' can be used as condition to run any command with current archive
             # It can be function or any command to run in shell. It is None by default
             #'run-before'   : doIf,
-            'run-before'   : 'ping -c 1 localhost &> /dev/null',
+            'run-before'   : 'ping -c 1 localhost &> /dev/null; mkdir -p ${MY_BORG_REPO_MNTPNT}',
             #'run-after'    : None,
         }),
         'rclone' : dict(default['rclone'], **{
@@ -102,6 +107,20 @@ archives = (
         },
     },
     # one more archive and etc
+    {
+        'borg' : dict(default['borg'], **{
+            'repository'   : '/tmp/borg-test-repo/2',
+            'source'       : (
+                'test-src',
+            ),
+            'commands-extra' : dict(default['borg']['commands-extra'], **{
+            }),
+            'env-vars' : dict(default['borg']['env-vars'], **{
+                'MY_BORG_REPO_MNTPNT'  : '/tmp/borg-mount/2',
+            }),
+            'run-before'   : 'mkdir -p ${MY_BORG_REPO_MNTPNT}',
+        }),
+    },
 )
 
 """

@@ -465,7 +465,7 @@ class Backupper(object):
         import re
         with open(readmeFilePath) as readmeFile:
             for line in readmeFile:
-                m = re.search("borg\s+backup\s+repository", line, re.IGNORECASE)
+                m = re.search("borg\s+.*repository", line, re.IGNORECASE)
                 if m:
                     return True
 

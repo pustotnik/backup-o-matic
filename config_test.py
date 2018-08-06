@@ -86,14 +86,17 @@ archives = (
             #'run-before'   : doIf,
             'run-before'   : 'ping -c 1 localhost &> /dev/null; mkdir -p ${MY_BORG_REPO_MNTPNT}',
             #'run-after'    : None,
+            # Commands from this list will be ignored for current archive. Optional. Empty by default
+            'ignore-commands' : ( 'serve', ),
         }),
         'rclone' : dict(default['rclone'], **{
             # See description for the same param in borg section above
             'run-before'   : doIf,
             'run-after'    : None,
             'destination'  : 'remote:backup',
-            'commands-extra' : dict(default['rclone']['commands-extra'], **{
-            }),
+            #'commands-extra' : dict(default['rclone']['commands-extra'], **{
+            #}),
+            #'ignore-commands' : ( 'config', ),
         }),
         # Any custom shell command, can be called with format 'shell:any_name'.
         # See also DEFAULT_ACTIONS in this file.
@@ -118,6 +121,7 @@ archives = (
                 'MY_BORG_REPO_MNTPNT'  : '/tmp/borg-mount/2',
             }),
             'run-before'   : 'mkdir -p ${MY_BORG_REPO_MNTPNT}',
+            'ignore-commands' : ( 'serve', ),
         }),
     },
 )

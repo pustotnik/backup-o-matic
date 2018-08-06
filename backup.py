@@ -219,6 +219,7 @@ class Backupper(object):
                 'encryption-mode' : 'repokey',
                 'exclude'         : tuple(),
                 'commands-extra'  : dict(),
+                'ignore-commands' : tuple(),
                 'env-vars'        : dict(),
                 'run-before'      : None,
                 'run-after'       : None,
@@ -227,6 +228,7 @@ class Backupper(object):
                 'with-lock'       : False,
                 'destination'     : None,
                 'commands-extra'  : dict(),
+                'ignore-commands' : tuple(),
                 'env-vars'        : dict(),
                 'run-before'      : None,
                 'run-after'       : None,
@@ -269,16 +271,21 @@ class Backupper(object):
 
         for archiveConf in self._config.archives:
 
+            repo = archiveConf['borg']['repository']
             doCall = True
+
+            if prefix != 'shell' and command in archiveConf[prefix]['ignore-commands']:
+                self.logger.info("%s command '%s' in list of ignored commands for repo '%s'",
+                                prefix[0].upper() + prefix[1:], command, repo)
+                continue
 
             if prefix != 'shell':
                 runBefore = archiveConf[prefix]['run-before']
                 runAfter  = archiveConf[prefix]['run-after']
                 if runBefore:
                     doCall = self._doBeforeAfterCall(runBefore, archiveConf[prefix]['env-vars'],
-                                "Param 'run-before' from '%s' section" % prefix)
+                                "Param 'run-before' from '%s' section for repo '%s'" % (prefix, repo))
             if doCall:
-                repo = archiveConf['borg']['repository']
                 self.logger.info("Try to run %s command '%s' for repo '%s'",
                                 prefix, command, repo)
                 methodCall(archiveConf, params)
@@ -287,7 +294,7 @@ class Backupper(object):
 
             if prefix != 'shell' and runAfter:
                 self._doBeforeAfterCall(runAfter, archiveConf[prefix]['env-vars'],
-                                "Param 'run-after' from '%s' section" % prefix)
+                                "Param 'run-after' from '%s' section for repo '%s'" % (prefix, repo))
 
     def _doBeforeAfterCall(self, callEntity, envVars, paramDesc):
         result = None

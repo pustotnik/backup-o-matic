@@ -489,7 +489,7 @@ def main():
     seen = set()
     configFiles = [x for x in args.configFiles if x not in seen and not seen.add(x)]
 
-    sys.path.append(os.getcwd())
+    sys.path.insert(0, os.getcwd())
 
     # load all configs as python files
     configs = map(lambda m: __import__(m[:-3]),

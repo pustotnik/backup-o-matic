@@ -305,7 +305,7 @@ class Backupper(object):
             env = os.environ.copy()
             env.update(envVars)
             result = self._runCmdInSystem(callEntity, 'shell', env, raiseException = False)
-            result = result == 0
+            result = bool(result[0] == 0)
             self.logger.debug("%s is string to run command '%s' and result is '%s'",
                     paramDesc, callEntity, result)
         return result
@@ -320,15 +320,20 @@ class Backupper(object):
     def _doBorgInit(self, archiveConf, params):
         borgConf = archiveConf['borg']
 
-        if self.isBorgRepo(borgConf['repository']):
-            self.logger.info("A repository already exists at %s. Command 'borg init' will not be used.",
-                borgConf['repository'])
-            return
-
         cmd = 'init --encryption=%s %s' % (borgConf['encryption-mode'], borgConf['repository'])
         cmd = cmd + borgConf['commands-extra']['init']
 
-        self._runBorgCmd(archiveConf, cmd + ' ' + params)
+        (rc, stdout, stderr) = self._runBorgCmd(archiveConf, cmd + ' ' + params, raiseException = False)
+        if rc == 0:
+            return
+        if rc == 2:
+            # It's useful to ignore error of already existing repository
+            import re
+            m = re.search("repository\s+already\s+exists", stdout, re.IGNORECASE)
+            if m:
+                return
+
+        raise ToolResultException("BORG process terminated with error code %s" % rc)
 
     def _doBorgCreate(self, archiveConf, params):
         borgConf = archiveConf['borg']
@@ -399,19 +404,19 @@ class Backupper(object):
         env = os.environ.copy()
         env.update(cmdConf['env-vars'])
 
-        self._runCmdInSystem(cmdConf['command-line'], 'shell', env)
+        return self._runCmdInSystem(cmdConf['command-line'], 'shell', env)
 
-    def _runBorgCmd(self, archiveConf, cmdLine):
+    def _runBorgCmd(self, archiveConf, cmdLine, raiseException = True):
         # We must do copy here otherwise we will show all our env variables in current process
         env = os.environ.copy()
         env.update(archiveConf['borg']['env-vars'])
-        self._runCmdInSystem(self.borgBin + ' ' + cmdLine, 'borg', env)
+        return self._runCmdInSystem(self.borgBin + ' ' + cmdLine, 'borg', env, raiseException)
 
-    def _runRcloneCmd(self, archiveConf, cmdLine):
+    def _runRcloneCmd(self, archiveConf, cmdLine, raiseException = True):
         # We must do copy here otherwise we will show all our env variables in current process
         env = os.environ.copy()
         env.update(archiveConf['rclone']['env-vars'])
-        self._runCmdInSystem(self.rcloneBin + ' ' + cmdLine, 'rclone', env)
+        return self._runCmdInSystem(self.rcloneBin + ' ' + cmdLine, 'rclone', env, raiseException)
 
     def _runCmdInSystem(self, cmdLine, prefix, env, raiseException = True):
 
@@ -432,7 +437,7 @@ class Backupper(object):
         if proc.returncode != 0 and raiseException:
             raise ToolResultException("%s process terminated with error code %s" \
                                     % (appLogName, proc.returncode))
-        return proc.returncode
+        return (proc.returncode, stdout, stderr)
 
     def run(self):
         try:
@@ -447,29 +452,6 @@ class Backupper(object):
             return False
 
         return True
-
-    def isBorgRepo(self, path):
-        if not os.path.isdir(path):
-            return False
-        if not os.path.isfile(os.path.join(path, 'config')):
-            return False
-
-        readmeFilePath = os.path.join(path, 'README')
-        if not os.path.isfile(readmeFilePath):
-            return False
-
-        """
-        From docs:
-        README - simple text file telling that this is a Borg repository
-        """
-        import re
-        with open(readmeFilePath) as readmeFile:
-            for line in readmeFile:
-                m = re.search("borg\s+.*repository", line, re.IGNORECASE)
-                if m:
-                    return True
-
-        return False
 
 def main():
 

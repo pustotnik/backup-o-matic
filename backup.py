@@ -202,13 +202,16 @@ class Backupper(object):
                     conf['commands-extra'][cmd] = ' ' + conf['commands-extra'][cmd]
                 conf['commands-extra'] = defaultdict(str, conf['commands-extra'])
 
+            repo = borgConf['repository']
             # set 'source' as 'repository' from borg config
-            rcloneConf['source'] = borgConf['repository']
+            rcloneConf['source'] = repo
 
             # to simplify work with borg commands
-            borgConf['env-vars']['BORG_REPO'] = borgConf['repository']
+            borgConf['env-vars']['BORG_REPO'] = repo
 
-            makeDir(borgConf['repository'])
+            if repo.find('@') == -1:
+                # only for local path
+                makeDir(repo)
 
     def _setupDefaultConfigValues(self, archiveConf):
 

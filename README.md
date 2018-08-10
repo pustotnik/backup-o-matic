@@ -4,6 +4,9 @@
 This script is for automation and simplifying of my own backups. It's just wrapper for
 borg (https://www.borgbackup.org/) with some extra functionality with rclone (https://rclone.org/).
 
+###Why?
+You can find different already ready to use wrappers for borg on internet. For example here: https://github.com/borgbackup/community. And I checked up almost all of them but did't find suitable for my requirements. So I decided to write my own version of wrapper :)
+
 ###Main goals of this script:
  - send logs by email
  - simple enough but flexible configs (I selected python file as config file)

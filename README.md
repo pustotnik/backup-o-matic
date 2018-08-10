@@ -18,3 +18,42 @@ borg (https://www.borgbackup.org/) with some extra functionality with rclone (ht
  - to handle all sorts of errors and cases (but I try to fix all important cases)
  - to provide working script for not GNU/Linux platform (but it is OK if someone do it)
  - to write ideal code
+
+###Main features:
+ - Python config files. It is flexible enough.
+ - Supporting use of several config files at once.
+ - Sending reports with mail. It can be set up to send directly or with sendmail (ssmtp or similar).
+ - Each command can be forced to run with command line.
+ - Supporting run of any borg command.
+ - Supporting use of the rclone.
+ - Supporting use of any shell command.
+ - Supporting use of 'run-before' and 'run-after' actions for each command except shell command (because it has no sense).
+ - Supporting adding of environment variables
+
+###Using
+Example of config file you can see in config_test.py.
+
+Typical run:
+```bash
+$ ./backup.py config_test.py
+```
+Run specific borg command:
+```
+$ ./backup.py config_test.py -a "borg:create"
+```
+Example of crond file as /etc/cron.d/backup:
+```
+ 45  5  * * *  root /home/backupuser/backup.sh >/dev/null 2>&1
+```
+Example of backup.sh from previous example:
+```
+#!/bin/bash
+  
+# detect current directory
+BASEDIR=`realpath "$0"`
+BASEDIR=`dirname "$BASEDIR"`
+cd "$BASEDIR/backup"
+
+./backup.py config_myhost.py
+```
+Where `/home/backupuser/backup` is a directory with backup-o-matic script (or symlink to it) and config files.

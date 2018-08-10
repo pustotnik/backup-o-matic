@@ -30,7 +30,7 @@ borg (https://www.borgbackup.org/) with some extra functionality with rclone (ht
  - Supporting use of 'run-before' and 'run-after' actions for each command except shell command (because it has no sense).
  - Supporting adding of environment variables
 
-###Using
+###Usage
 Example of config file you can see in config_test.py.
 
 Typical run:

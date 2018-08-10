@@ -34,10 +34,10 @@ borg (https://www.borgbackup.org/) with some extra functionality with rclone (ht
 Example of config file you can see in config_test.py.
 
 Typical run:
-```bash
+```
 $ ./backup.py config_test.py
 ```
-Run specific borg command:
+Run specific borg command only:
 ```
 $ ./backup.py config_test.py -a "borg:create"
 ```
@@ -57,3 +57,18 @@ cd "$BASEDIR/backup"
 ./backup.py config_myhost.py
 ```
 Where `/home/backupuser/backup` is a directory with backup-o-matic script (or symlink to it) and config files.
+
+Example of using of rsync command as shell command in my own config for some reason:
+```
+'borg' : {
+    ...
+},
+'sync-to-myhost' : {
+    'command-line' : \
+        'ping -c 1 myhost &> /dev/null ;'
+        ' REMOTE_HOST_ONLINE=$? ;'
+        ' if [[ $REMOTE_HOST_ONLINE -ne 0 ]]; then exit; fi ;'
+        ' rsync -av --delete-after -e "ssh -p22" ${BORG_REPO} backupuser@myhost:/path/to/backup/copy '
+        ,
+},
+```

@@ -59,7 +59,7 @@ cd "$BASEDIR/backup"
 
 ./backup.py config_myhost.py
 ```
-Where `/home/backupuser/backup` is a directory with backup-o-matic script (or symlink to it) and config files.
+Where `/home/backupuser/backup` is a directory with backup-o-matic script `backup.py` (or symlink to it) and config files.
 
 Example of using of rsync command as shell command in my own config for some reason:
 ```

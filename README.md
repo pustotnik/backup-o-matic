@@ -26,7 +26,7 @@ You can find different already ready to use wrappers for borg on internet. For e
  - Python config files. It is flexible enough.
  - Supporting use of several config files at once.
  - Sending reports with mail. It can be set up to send directly or with sendmail (ssmtp or similar).
- - Each command can be forced to run with command line.
+ - Each command can be forced to run with command line (without mail reports).
  - Supporting run of any borg command.
  - Supporting use of the rclone.
  - Supporting use of any shell command.

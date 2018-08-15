@@ -148,6 +148,10 @@ LOG_LEVEL = logging.DEBUG
 #LOG_LEVEL = logging.ERROR
 #LOG_LEVEL = logging.CRITICAL
 
+# You can set level of logging only for console and/or mail. By default LOG_LEVEL is used for both.
+CONSOLE_LOG_LEVEL = logging.DEBUG
+EMAIL_LOG_LEVEL   = logging.INFO
+
 """
 ======================= DEFAULT LIST OF ACTIONS IN ORDER OF RUNNING
 """

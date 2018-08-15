@@ -112,11 +112,15 @@ class BufferingSMTPHandler(logging.handlers.BufferingHandler):
 class UnitLogger(object):
 
     def __init__(self, config):
-        logLevel = config.LOG_LEVEL if hasattr(config, 'LOG_LEVEL') else LOG_DEFAULT_LEVEL
+        commonLogLevel = config.LOG_LEVEL if hasattr(config, 'LOG_LEVEL') else LOG_DEFAULT_LEVEL
+        consoleLogLevel = config.CONSOLE_LOG_LEVEL \
+                            if hasattr(config, 'CONSOLE_LOG_LEVEL') else commonLogLevel
+        emailLogLevel = config.EMAIL_LOG_LEVEL \
+                            if hasattr(config, 'EMAIL_LOG_LEVEL') else commonLogLevel
 
         # get ready to use default logger
         self.consoleLog = logging.getLogger(__name__)
-        self.consoleLog.setLevel(logLevel)
+        self.consoleLog.setLevel(consoleLogLevel)
 
         # setup mail logger
         self.mailLog = None
@@ -125,9 +129,9 @@ class UnitLogger(object):
             useMail = config.email['use']
         if useMail:
             self.mailLog = logging.getLogger('mail')
-            self.mailLog.setLevel(logLevel)
+            self.mailLog.setLevel(emailLogLevel)
             smtpHandler = BufferingSMTPHandler(config.email)
-            smtpHandler.setLevel(logLevel)
+            smtpHandler.setLevel(emailLogLevel)
             smtpHandler.setFormatter(LOG_FORMATTER)
             self.mailLog.addHandler(smtpHandler)
 

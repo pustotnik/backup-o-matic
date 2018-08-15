@@ -75,3 +75,5 @@ Example of using rsync command as shell command in my own config for some reason
         ,
 },
 ```
+
+If you want to get mail reports only for errors you can just set EMAIL_LOG_LEVEL in config file to the logging.ERROR.

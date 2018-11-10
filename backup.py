@@ -16,6 +16,9 @@ from collections import defaultdict
 from email.mime.text import MIMEText
 from distutils.spawn import find_executable
 
+# Avoid writing .pyc files
+sys.dont_write_bytecode = True
+
 BORG_BIN   = find_executable('borg')
 RCLONE_BIN = find_executable('rclone')
 

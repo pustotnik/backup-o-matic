@@ -16,8 +16,18 @@ from collections import defaultdict
 from email.mime.text import MIMEText
 from distutils.spawn import find_executable
 
+PY2 = sys.version_info[0] == 2
+PY3 = sys.version_info[0] >= 3
+
+if PY3:
+    string_types = str
+else:
+    string_types = basestring
+
 # Avoid writing .pyc files
 sys.dont_write_bytecode = True
+
+ALLOWED_PREFIXES = ('borg', 'rclone', 'shell')
 
 BORG_BIN   = find_executable('borg')
 RCLONE_BIN = find_executable('rclone')
@@ -174,7 +184,7 @@ class Backupper(object):
         self._config = config
         self.logger = UnitLogger(config)
         self.logger.enableMail = not cmdLineActions
-        self._actions = cmdLineActions if cmdLineActions else config.DEFAULT_ACTIONS
+        self._actions = cmdLineActions or config.DEFAULT_ACTIONS
 
         self.borgBin = config.BORG_BIN if hasattr(config, 'BORG_BIN') else BORG_BIN
         self.rcloneBin = config.RCLONE_BIN if hasattr(config, 'RCLONE_BIN') else RCLONE_BIN
@@ -255,15 +265,14 @@ class Backupper(object):
 
         parts = action.split(':', 2)
         if len(parts) < 2:
-            raise Error('Unknown command format, should be format "prefix:command[:\"params\"]"')
+            raise Exception('Unknown command format, should be format "prefix:command[:\"params\"]"')
         prefix = parts[0]
         command = parts[1]
         params = ''
         if len(parts) == 3:
             params = parts[2]
 
-        allowedPrefixes = ('borg', 'rclone', 'shell')
-        if prefix not in allowedPrefixes:
+        if prefix not in ALLOWED_PREFIXES:
             raise Exception('Unknown prefix of command, should be one from list: %s'
                             % ', '.join(allowedPrefixes))
 
@@ -311,7 +320,7 @@ class Backupper(object):
         if callable(callEntity):
             result = callEntity()
             self.logger.debug("%s is function and result is '%s'", paramDesc, result)
-        elif isinstance(callEntity, str):
+        elif isinstance(callEntity, string_types):
             env = os.environ.copy()
             env.update(envVars)
             result = self._runCmdInSystem(callEntity, 'shell', env, raiseException = False)
@@ -431,7 +440,7 @@ class Backupper(object):
     def _runCmdInSystem(self, cmdLine, prefix, env, raiseException = True):
 
         appLogName = prefix.upper()
-        self.logger.debug("%s command line: `%s`", appLogName, cmdLine)
+        self.logger.info("%s command line: `%s`", appLogName, cmdLine)
 
         # Redirect stderr to stdout, see also:
         # https://github.com/borgbackup/borg/issues/520
@@ -465,11 +474,13 @@ class Backupper(object):
 
 def main():
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        formatter_class = argparse.RawTextHelpFormatter)
+    parser.add_argument('-a', '--action', nargs = '?', default='', \
+        help = "action, optional, format:\nprefix:command[:\"command params\"]"
+                "\nprefix is one of: %s" % str(ALLOWED_PREFIXES)[1:-1])
     parser.add_argument("configFiles", nargs = '+', metavar = 'configfile', \
         help = "path to config file, file should have python format")
-    parser.add_argument('-a', '--actions', nargs = '*', \
-        help = "actions in order of running, optional, format: prefix:command[:\"command params\"]")
 
     if len(sys.argv) == 1:
         parser.print_help()
@@ -488,7 +499,7 @@ def main():
             filter(lambda f: f.endswith(".py"), configFiles))
 
     for cfg in configs:
-        backupper = Backupper(cfg, args.actions)
+        backupper = Backupper(cfg, args.action.split())
         if not backupper.run():
             return 1
 

@@ -42,7 +42,10 @@ $ ./backup.py config_test.py
 ```
 Run specific borg command only:
 ```
-$ ./backup.py config_test.py -a "borg:create"
+$ ./backup.py config_test.py -a borg:create
+$ ./backup.py config_test.py -a borg:list
+$ ./backup.py config_test.py -a borg:mount:"-v --debug -o allow_other"
+$ ./backup.py config_test.py -a borg:umount
 ```
 Example of crond file as /etc/cron.d/backup:
 ```

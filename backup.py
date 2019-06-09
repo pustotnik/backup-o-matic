@@ -440,7 +440,7 @@ class Backupper(object):
     def _runCmdInSystem(self, cmdLine, prefix, env, raiseException = True):
 
         appLogName = prefix.upper()
-        self.logger.info("%s command line: `%s`", appLogName, cmdLine)
+        self.logger.debug("%s command line: `%s`", appLogName, cmdLine)
 
         # Redirect stderr to stdout, see also:
         # https://github.com/borgbackup/borg/issues/520

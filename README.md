@@ -4,10 +4,10 @@
 This script is for automation and simplifying of my own backups. It's just a wrapper for
 borg (https://www.borgbackup.org/) with some extra functionality with rclone (https://rclone.org/).
 
-###Why?
+### Why?
 You can find different already ready to use wrappers for borg on internet. For example here: https://github.com/borgbackup/community. And I checked up almost all of them but did't find suitable for my requirements. So I decided to write my own version of a wrapper :)
 
-###Main goals of this script:
+### Main goals of this script:
  - send logs by email
  - simple enough but flexible configs (I selected python file as config file)
  - no extra dependencies, only python (>=2.7 or >=3.5), borgbackup, core
@@ -15,14 +15,14 @@ You can find different already ready to use wrappers for borg on internet. For e
  - upgrade of borgbackup or rclone should not require any change of the script,
    but may require some change of the configs
 
-###I have NO goals:
+### I have NO goals:
  - to make the script user-friendly for everyone (for example, you should understand basic syntax of python)
  - to write the code with max performance (but it has good performance for me anyway)
  - to handle all sorts of errors and cases (but I try to fix all important cases)
  - to provide working script for not GNU/Linux platform (but it is OK if someone does it)
  - to write an ideal code
 
-###Main features:
+### Main features:
  - Python config files. It is flexible enough.
  - Supporting the use of several config files at once.
  - Sending reports by mail.  It can be set up to send them directly or with sendmail (ssmtp or similar).
@@ -33,7 +33,7 @@ You can find different already ready to use wrappers for borg on internet. For e
  - Supporting the use of 'run-before' and 'run-after' actions for each command except a shell command (because it has no sense).
  - Supporting the adding of environment variables
 
-###Usage
+### Usage
 Example of config file you can see in config_test.py.
 
 Typical run:

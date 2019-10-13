@@ -100,6 +100,9 @@ class BufferingSMTPHandler(logging.handlers.BufferingHandler):
             msg['From']    = self.emailConf['from']
             msg['To']      = self.emailConf['to']
 
+            if self.level >= logging.ERROR:
+                msg['Subject'] += ' [A PROBLEM]'
+
             if self.useSendmail:
                 sendmail = find_executable('sendmail')
                 p = subprocess.Popen([sendmail, "-t", "-oi"],
@@ -274,7 +277,7 @@ class Backupper(object):
 
         if prefix not in ALLOWED_PREFIXES:
             raise Exception('Unknown prefix of command, should be one from list: %s'
-                            % ', '.join(allowedPrefixes))
+                            % ', '.join(ALLOWED_PREFIXES))
 
         methodName = '_do' + prefix[0].upper() + prefix[1:] + command[0].upper() + command[1:]
 
@@ -348,7 +351,7 @@ class Backupper(object):
         if rc == 2:
             # It's useful to ignore error of already existing repository
             import re
-            m = re.search("repository\s+already\s+exists", stdout, re.IGNORECASE)
+            m = re.search(r"repository\s+already\s+exists", stdout, re.IGNORECASE)
             if m:
                 return
 

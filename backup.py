@@ -120,7 +120,7 @@ class BufferingSMTPHandler(logging.handlers.BufferingHandler):
                             self.emailConf['to'].split(','), msg.as_string())
                 smtp.quit()
 
-            log.info('Email was sent')
+            log.info('Email has been sent')
             self.buffer = []
         except Exception as exc:
             log.error("Error during mail sending:\n%s", exc)
@@ -268,7 +268,7 @@ class Backupper(object):
 
         parts = action.split(':', 2)
         if len(parts) < 2:
-            raise Exception('Unknown command format, should be format "prefix:command[:\"params\"]"')
+            raise Exception('Unknown command format, should be "prefix:command[:\"params\"]"')
         prefix = parts[0]
         command = parts[1]
         params = ''
@@ -311,7 +311,7 @@ class Backupper(object):
                 self.logger.info("Try to run %s command '%s' for repo '%s'",
                                 prefix, command, repo)
                 methodCall(archiveConf, params)
-                self.logger.info("%s command '%s' for repo '%s' has done",
+                self.logger.info("%s command '%s' for repo '%s' has been done",
                                 prefix[0].upper() + prefix[1:], command, repo)
 
             if prefix != 'shell' and runAfter:
@@ -333,7 +333,7 @@ class Backupper(object):
         return result
 
     def _doBorgDefault(self, archiveConf, cmd, params):
-        self.logger.debug("Default command handler is using for borg command '%s'", cmd)
+        self.logger.debug("Default command handler is used for borg command '%s'", cmd)
 
         borgConf = archiveConf['borg']
         cmd = cmd + borgConf['commands-extra'][cmd]
@@ -355,7 +355,7 @@ class Backupper(object):
             if m:
                 return
 
-        raise ToolResultException("BORG process terminated with error code %s" % rc)
+        raise ToolResultException("BORG process has been terminated with error code %s" % rc)
 
     def _doBorgCreate(self, archiveConf, params):
         borgConf = archiveConf['borg']
@@ -371,7 +371,7 @@ class Backupper(object):
         self._runBorgCmd(archiveConf, cmd + ' ' + params)
 
     def _doRcloneDefault(self, archiveConf, cmd, params):
-        self.logger.debug("Default command handler is using for rclone command '%s'", cmd)
+        self.logger.debug("Default command handler is used for rclone command '%s'", cmd)
 
         rcloneConf = archiveConf['rclone']
         borgConf   = archiveConf['borg']
@@ -415,7 +415,7 @@ class Backupper(object):
             return
 
         cmdConf = archiveConf[cmdLable]
-        self.logger.debug("Command handler for custom shell command labeled as '%s': '%s'",
+        self.logger.debug("Command handler for custom shell command has been labeled as '%s': '%s'",
             cmdLable, cmdConf['command-line'])
 
         if 'env-vars' not in cmdConf:
@@ -457,7 +457,7 @@ class Backupper(object):
         if stdout:
             self.logger.info(appLogName + ' OUTPUT:\n' + stdout)
         if proc.returncode != 0 and raiseException:
-            raise ToolResultException("%s process terminated with error code %s" \
+            raise ToolResultException("%s process has been terminated with error code %s" \
                                     % (appLogName, proc.returncode))
         return (proc.returncode, stdout, stderr)
 

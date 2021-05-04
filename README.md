@@ -50,10 +50,8 @@ Example of backup.sh from the previous example:
 ```
 #!/bin/bash
 
-# detect current directory
-BASEDIR=`realpath "$0"`
-BASEDIR=`dirname "$BASEDIR"`
-cd "$BASEDIR/backup"
+# detect right directory and go into it
+cd "$( dirname "$(realpath ${BASH_SOURCE[0]:-$0})" )/backup"
 
 ./backup.py config_myhost.py
 ```

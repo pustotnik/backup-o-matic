@@ -120,7 +120,7 @@ class BufferingSMTPHandler(logging.handlers.BufferingHandler):
                             self.emailConf['to'].split(','), msg.as_string())
                 smtp.quit()
 
-            log.info('Email has been sent')
+            log.info('Email was sent')
             self.buffer = []
         except Exception as exc:
             log.error("Error during mail sending:\n%s", exc)
@@ -308,10 +308,10 @@ class Backupper(object):
                     doCall = self._doBeforeAfterCall(runBefore, archiveConf[prefix]['env-vars'],
                                 "Param 'run-before' from '%s' section for repo '%s'" % (prefix, repo))
             if doCall:
-                self.logger.info("Try to run %s command '%s' for repo '%s'",
+                self.logger.info("Running %s command '%s' for repo '%s'",
                                 prefix, command, repo)
                 methodCall(archiveConf, params)
-                self.logger.info("%s command '%s' for repo '%s' has been done",
+                self.logger.info("%s command '%s' for repo '%s' done",
                                 prefix[0].upper() + prefix[1:], command, repo)
 
             if prefix != 'shell' and runAfter:
@@ -355,7 +355,7 @@ class Backupper(object):
             if m:
                 return
 
-        raise ToolResultException("BORG process has been terminated with error code %s" % rc)
+        raise ToolResultException("BORG process terminated with error code %s" % rc)
 
     def _doBorgCreate(self, archiveConf, params):
         borgConf = archiveConf['borg']
@@ -457,7 +457,7 @@ class Backupper(object):
         if stdout:
             self.logger.info(appLogName + ' OUTPUT:\n' + stdout)
         if proc.returncode != 0 and raiseException:
-            raise ToolResultException("%s process has been terminated with error code %s" \
+            raise ToolResultException("%s process terminated with error code %s" \
                                     % (appLogName, proc.returncode))
         return (proc.returncode, stdout, stderr)
 
